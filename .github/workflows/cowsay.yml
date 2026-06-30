@@ -28,6 +28,6 @@ jobs:
             ls
             x cowsay "hello world"
             echo "${{ github.event.inputs.name }}"
-
+            x env use jq
             x eget use ljh-sh/zhhz
             echo '汉字' | zhhz --from cn-s --to cn-t
