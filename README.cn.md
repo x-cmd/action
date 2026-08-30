@@ -342,12 +342,12 @@ jobs:
 
 ### 2.7 切换 x-cmd 发布通道
 
-默认拉稳定版安装器（`index.html`）。想试 canary / beta / dev：
+默认拉稳定版安装器（`index.html`）。想试非发布版：
 
 ```yaml
 - uses: x-cmd/action@main
   env:
-    ___X_CMD_GHACTION_X: x1    # x0 / x1 / x2 → canary / beta / dev
+    ___X_CMD_GHACTION_X: x7    # x0 (社区开发版) / x1-x6 (实验版) / x7 (alpha)
   with:
     code: x --version
 ```
@@ -429,7 +429,7 @@ LICENSE             Apache 2.0
 `___x_cmd_ghaction_init` 串起四个子步骤：
 
 1. **SSH** —— 启动 `ssh-agent`，从 `x-cmd/knownhost` 写 `~/.ssh/known_hosts`，`ssh-add` 私钥。
-2. **x-cmd** —— `eval "$(curl ... x-cmd/get/main/<channel>)"` 装到 `~/.x-cmd.root/`。
+2. **x-cmd** —— `eval "$(curl ... x-cmd/get/main/<stream>)"` 装到 `~/.x-cmd.root/`。
 3. **Docker** —— 可选的 `docker login` 与 `docker buildx create --use`。
 4. **Git** —— 设 `user.name` / `user.email`，按需克隆 `ws_owner_repo` → `ws/`。
 
@@ -548,7 +548,7 @@ composite-action 的 step 不共享 shell 状态，而 init（慢、装 x-cmd）
 eval "$(curl "https://raw.githubusercontent.com/x-cmd/get/main/$___X_CMD_GHACTION_X")" || true
 ```
 
-`___X_CMD_GHACTION_X` 默认 `index.html`（稳定版），可选 `x0` / `x1` / `x2`（canary / beta / dev）。
+`___X_CMD_GHACTION_X` 默认 `index.html`（稳定版），可选 `x0`（社区开发版）/ `x1-x6`（实验版）/ `x7`（alpha）用于非发布构建。
 
 通用的 `eval "$(curl -s https://get.x-cmd.com)"` 走的是另一个端点 —— 一个 CDN 前置的域名，最终也是从 `x-cmd/get` 的 `index.html` 服务出来的。在 action 的 git 历史里能看到，这一行最早用的是 `x-bash/get`，后来换成 `get.x-cmd.com`，最后才定到当前的直连 raw URL。
 
@@ -569,10 +569,10 @@ action 把 raw URL 硬编码作为默认值，覆盖的是最常见的情况（�
 
 | | `x-cmd/action` | `eval "$(curl ... get.x-cmd.com)"` |
 | --- | --- | --- |
-| 安装 URL | 直连 raw：`raw.githubusercontent.com/x-cmd/get/main/<channel>` | CDN：`get.x-cmd.com` |
+| 安装 URL | 直连 raw：`raw.githubusercontent.com/x-cmd/get/main/<stream>` | CDN：`get.x-cmd.com` |
 | 网络路径（在 GitHub 托管 runner 上） | GitHub 数据中心内网 | 出 GitHub 网络 → 公共互联网 → CDN 边缘 |
 | 网络路径（在 self-hosted runner 上） | 取决于你的网络 | 取决于你的网络 |
-| 通道选择 | 通过 `___X_CMD_GHACTION_X` 显式指定（`index.html` / `x0` / `x1` / `x2`） | 取决于请求时 CDN 服务的内容 |
+| 通道选择 | 通过 `___X_CMD_GHACTION_X` 显式指定（`index.html` / `x0` / `x1-x6` / `x7`） | 取决于请求时 CDN 服务的内容 |
 | 失败处理 | `\|\| true` + init 上下文 `errexit` 是关的 —— 装失败不会拖垮 job | 由调用方自己处理 |
 
 在 GitHub Actions 里用 `x-cmd/action`；其他场景用通用安装（§A.1 的写法）。

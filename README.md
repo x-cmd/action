@@ -340,14 +340,14 @@ jobs:
           code: x ws build ${{ matrix.image }}
 ```
 
-### 2.7 Switch x-cmd release channel
+### 2.7 Switch x-cmd release stream
 
-By default the action pulls the stable installer (`index.html`). To test a canary/beta/dev build, set `___X_CMD_GHACTION_X`:
+By default the action pulls the stable installer (`index.html`). To test a non-release stream, set `___X_CMD_GHACTION_X`:
 
 ```yaml
 - uses: x-cmd/action@main
   env:
-    ___X_CMD_GHACTION_X: x1    # x0 / x1 / x2 → canary / beta / dev
+    ___X_CMD_GHACTION_X: x7    # x0 (community-dev) / x1-x6 (experimental) / x7 (alpha)
   with:
     code: x --version
 ```
@@ -429,7 +429,7 @@ The three user-facing steps map onto three composite steps: `init` runs the inst
 `___x_cmd_ghaction_init` runs four sub-steps:
 
 1. **SSH** — start `ssh-agent`, write `~/.ssh/known_hosts` from `x-cmd/knownhost`, `ssh-add` the key.
-2. **x-cmd** — `eval "$(curl ... x-cmd/get/main/<channel>)"` installs to `~/.x-cmd.root/`.
+2. **x-cmd** — `eval "$(curl ... x-cmd/get/main/<stream>)"` installs to `~/.x-cmd.root/`.
 3. **Docker** — optional `docker login` and `docker buildx create --use`.
 4. **Git** — set `user.name` / `user.email`, optionally clone `ws_owner_repo` → `ws/`.
 
@@ -524,7 +524,7 @@ No. The init step runs with `errexit` disabled and the `eval` has `|| true`. Fai
 
 ### Can I pin a specific x-cmd version?
 
-Indirectly — by pinning this action (`x-cmd/action@v1.2.3`) and switching `___X_CMD_GHACTION_X` to a known channel. There's no per-commit hash pinning for the x-cmd installer itself.
+Indirectly — by pinning this action (`x-cmd/action@v1.2.3`) and switching `___X_CMD_GHACTION_X` to a known stream. There's no per-commit hash pinning for the x-cmd installer itself.
 
 ### Does it work on macOS / Windows runners?
 
@@ -552,7 +552,7 @@ From `lib/index.sh`, the action does:
 eval "$(curl "https://raw.githubusercontent.com/x-cmd/get/main/$___X_CMD_GHACTION_X")" || true
 ```
 
-…where `___X_CMD_GHACTION_X` defaults to `index.html` (stable), with `x0` / `x1` / `x2` available for canary / beta / dev.
+…where `___X_CMD_GHACTION_X` defaults to `index.html` (stable), with `x0` (community-dev) / `x1-x6` (experimental) / `x7` (alpha) available for non-release builds.
 
 The generic `eval "$(curl -s https://get.x-cmd.com)"` is the same content served via a different endpoint — a CDN-fronted domain that ultimately serves `x-cmd/get`'s `index.html`. In the action's git history you can see the older versions of this line used `x-bash/get` and `get.x-cmd.com` before settling on the direct raw URL.
 
@@ -573,10 +573,10 @@ The action's hard-coded raw URL is the right default for the common case (hosted
 
 | | `x-cmd/action` | `eval "$(curl ... get.x-cmd.com)"` |
 | --- | --- | --- |
-| Install URL | direct raw: `raw.githubusercontent.com/x-cmd/get/main/<channel>` | CDN: `get.x-cmd.com` |
+| Install URL | direct raw: `raw.githubusercontent.com/x-cmd/get/main/<stream>` | CDN: `get.x-cmd.com` |
 | Network path (on GitHub-hosted runners) | internal to GitHub's data center | leaves GitHub's network → public internet → CDN edge |
 | Network path (on self-hosted runners) | depends on your network | depends on your network |
-| Channel selection | explicit via `___X_CMD_GHACTION_X` env var (`index.html` / `x0` / `x1` / `x2`) | whatever the CDN serves at request time |
+| Stream selection | explicit via `___X_CMD_GHACTION_X` env var (`index.html` / `x0` / `x1-x6` / `x7`) | whatever the CDN serves at request time |
 | Failure handling | `\|\| true` + init context has `errexit` off — install failure doesn't kill the job | up to the caller |
 
 Use `x-cmd/action` inside GitHub Actions; use the generic install (§A.1 pattern) everywhere else.
@@ -660,7 +660,7 @@ See [`.github/workflows/README.md`](.github/workflows/README.md) for the full li
 - **`test-pipeline.yml`** — multi-job `build → test → publish` with artifact handoff.
 - **`test-toolchain.yml`** — `x env use node` / `python` instead of `actions/setup-*`.
 - **`test-portable-script.yml`** — `script:` input sourcing `.x-cmd/<job-name>` (Pattern C).
-- **`test-channels.yml`** — matrix across `___X_CMD_GHACTION_X` channels (`index.html` / `x0` / `x1` / `x2`).
+- **`test-channels.yml`** — matrix across `___X_CMD_GHACTION_X` streams (`index.html` / `x0` / `x1-x6` / `x7`).
 
 ## License
 

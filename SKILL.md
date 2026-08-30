@@ -195,12 +195,12 @@ Anything under `~/ws/.artifact` is uploaded automatically:
     artifact_retention_days: 30
 ```
 
-### 4.9 Switch x-cmd channel (canary / beta / dev)
+### 4.9 Switch x-cmd stream
 
 ```yaml
 - uses: x-cmd/action@main
   env:
-    ___X_CMD_GHACTION_X: x1       # x0 / x1 / x2 → canary / beta / dev
+    ___X_CMD_GHACTION_X: x7       # x0 (community-dev) / x1-x6 (experimental) / x7 (alpha)
   with:
     code: x --version
 ```
