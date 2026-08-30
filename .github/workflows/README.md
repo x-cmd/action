@@ -18,6 +18,8 @@
 | `test-hooks.yml` | `prehook` → `script` → `code` → `posthook` execution order |
 | `test-pipeline.yml` | multi-job workflow — build → test → publish with artifact handoff |
 | `test-toolchain.yml` | `x env use node` / `python` instead of `actions/setup-*` |
+| `test-portable-script.yml` | `script:` input sourcing `.x-cmd/<job-name>` (Pattern C convention) |
+| `test-channels.yml` | matrix across `___X_CMD_GHACTION_X` channels (`index.html` / `x0` / `x1` / `x2`) |
 
 ## Why `test-` prefix
 

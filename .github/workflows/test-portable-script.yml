@@ -1,0 +1,20 @@
+# Example: portable script via the `script:` input.
+# Demonstrates: a checked-out repo + a script file at .x-cmd/<job-name>,
+#               auto-sourced by x-cmd/action (the §1.4 Pattern C convention).
+# Note: actions/checkout is required here because the script file lives in the
+#       repo — x-cmd/action doesn't checkout on its own. This is the realistic
+#       pattern: workflow repo contains the CI scripts, x-cmd/action just runs them.
+
+name: Example — Portable Script (script:)
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: source .x-cmd/build via the script: input
+        uses: x-cmd/action@main
+        with:
+          script: .x-cmd/build

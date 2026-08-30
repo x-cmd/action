@@ -1,0 +1,23 @@
+# Example: switch x-cmd release channel via ___X_CMD_GHACTION_X.
+# Demonstrates: matrix across index.html (stable) / x0 / x1 / x2 (canary/beta/dev).
+# Use this to verify a canary build before promoting it to stable.
+
+name: Example — x-cmd Release Channels
+on:
+  workflow_dispatch:
+
+jobs:
+  channel:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        channel: [index.html, x0, x1, x2]
+    steps:
+      - name: Install from channel ${{ matrix.channel }}
+        uses: x-cmd/action@main
+        env:
+          ___X_CMD_GHACTION_X: ${{ matrix.channel }}
+        with:
+          code: |
+            x cowsay "channel=$___X_CMD_GHACTION_X"
+            x sysinfo | head -3
