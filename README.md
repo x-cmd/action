@@ -518,6 +518,30 @@ Composite-action steps don't share shell state, and `init` (slow, installs x-cmd
 
 When `ws_owner_repo` and `ws_repo_ref` are both set, the action does `git clone --branch <ref> <url>` and then `ln -s $(pwd)/<repo> $(pwd)/ws`. The symlink is what your `script:` path resolves against after `cd ws`.
 
+### How does `x-cmd/action`'s install differ from `eval "$(curl -s https://get.x-cmd.com)"`?
+
+**Functionally identical** — both end up with the same x-cmd installed under `~/.x-cmd.root/`. The action just knows it's inside GitHub Actions, so it pins the install to a specific URL.
+
+From `lib/index.sh`, the action does:
+
+```bash
+eval "$(curl "https://raw.githubusercontent.com/x-cmd/get/main/$___X_CMD_GHACTION_X")" || true
+```
+
+…where `___X_CMD_GHACTION_X` defaults to `index.html` (stable), with `x0` / `x1` / `x2` available for canary / beta / dev.
+
+The generic `eval "$(curl -s https://get.x-cmd.com)"` is the same content served via a different endpoint — a CDN-fronted domain that ultimately serves `x-cmd/get`'s `index.html`. In the action's git history you can see the older versions of this line used `x-bash/get` and `get.x-cmd.com` before settling on the direct raw URL.
+
+**The two real differences:**
+
+| | `x-cmd/action` | `eval "$(curl ... get.x-cmd.com)"` |
+| --- | --- | --- |
+| Install URL | direct raw: `raw.githubusercontent.com/x-cmd/get/main/<channel>` | CDN: `get.x-cmd.com` |
+| Channel selection | explicit via `___X_CMD_GHACTION_X` env var (`index.html` / `x0` / `x1` / `x2`) | whatever the CDN serves at request time |
+| Failure handling | `\|\| true` + init context has `errexit` off — install failure doesn't kill the job | up to the caller |
+
+Use `x-cmd/action` inside GitHub Actions; use the generic install (§A.1 pattern) everywhere else.
+
 ### What's `~/xghaction`?
 
 A transient dispatcher file downloaded by the first step and re-sourced by the second. Safe to ignore; don't put your own file at that path.

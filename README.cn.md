@@ -514,6 +514,30 @@ eval "$posthook"
 
 composite-action 的 step 不共享 shell 状态，而 init（慢、装 x-cmd）和 run（快、跑业务）是两个阶段。拆开之后这个 action 才**可组合**——你可以先做自己的 setup，再 `uses: x-cmd/action` 只跑 run 阶段。
 
+### `x-cmd/action` 的安装与 `eval "$(curl -s https://get.x-cmd.com)"` 有什么区别？
+
+**功能上完全一样** —— 两者最终都把同一个 x-cmd 装到 `~/.x-cmd.root/` 下。区别在于 action 知道自己在 GitHub Actions 里跑，所以直接把安装 URL 钉死。
+
+`lib/index.sh` 第 12 行写的就是：
+
+```bash
+eval "$(curl "https://raw.githubusercontent.com/x-cmd/get/main/$___X_CMD_GHACTION_X")" || true
+```
+
+`___X_CMD_GHACTION_X` 默认 `index.html`（稳定版），可选 `x0` / `x1` / `x2`（canary / beta / dev）。
+
+通用的 `eval "$(curl -s https://get.x-cmd.com)"` 走的是另一个端点 —— 一个 CDN 前置的域名，最终也是从 `x-cmd/get` 的 `index.html` 服务出来的。在 action 的 git 历史里能看到，这一行最早用的是 `x-bash/get`，后来换成 `get.x-cmd.com`，最后才定到当前的直连 raw URL。
+
+**两个真正不一样的点：**
+
+| | `x-cmd/action` | `eval "$(curl ... get.x-cmd.com)"` |
+| --- | --- | --- |
+| 安装 URL | 直连 raw：`raw.githubusercontent.com/x-cmd/get/main/<channel>` | CDN：`get.x-cmd.com` |
+| 通道选择 | 通过 `___X_CMD_GHACTION_X` 显式指定（`index.html` / `x0` / `x1` / `x2`） | 取决于请求时 CDN 服务的内容 |
+| 失败处理 | `\|\| true` + init 上下文 `errexit` 是关的 —— 装失败不会拖垮 job | 由调用方自己处理 |
+
+在 GitHub Actions 里用 `x-cmd/action`；其他场景用通用安装（§A.1 的写法）。
+
 ### `ws/` 是怎么生成的？
 
 `ws_owner_repo` 和 `ws_repo_ref` 都设了的时候，action 会 `git clone --branch <ref> <url>`，再 `ln -s $(pwd)/<repo> $(pwd)/ws`。进 `ws/` 之后 `script:` 的相对路径就是相对于这个仓库的根。
