@@ -486,6 +486,30 @@ Always runs. Forwards `artifact_*` inputs verbatim.
 
 ## 5. FAQ
 
+### Do I need to set `git_user` / `git_email` on every step?
+
+No — set them once per job and they persist. The action runs `git config --global user.name/email`, which writes to `~/.gitconfig`. The runner filesystem is shared across all steps in a single job, so any subsequent `git commit` in the same job uses the identity already on disk:
+
+```yaml
+steps:
+  - uses: x-cmd/action@main
+    with:
+      git_user: ci-bot
+      git_email: ci@example.com
+      code: |
+        echo a >> README.md
+        git add . && git commit -m "a"
+
+  - uses: x-cmd/action@main
+    # no git_user/git_email here — still commits as ci-bot
+    with:
+      code: |
+        echo b >> README.md
+        git add . && git commit -m "b"
+```
+
+**Across jobs** in the same workflow, runners are usually fresh VMs and `~/.gitconfig` doesn't carry. Set `git_user` / `git_email` per job (or hoist them to job-level `env:` — the action falls back to env vars). On **self-hosted persistent runners** the file does carry over, which can be surprising — set explicitly when in doubt.
+
 ### Do I need `actions/checkout` first?
 
 No. The action pulls its own dispatcher via `curl` and clones the workspace repo via `git clone` only if you set `ws_owner_repo`. If you need the current repo checked out for your own scripts, add `actions/checkout@v4` separately.

@@ -486,6 +486,30 @@ eval "$posthook"
 
 ## 5. FAQ
 
+### `git_user` / `git_email` 每个 step 都要设吗？
+
+不用 —— 一个 job 里设一次就够。action 用的是 `git config --global user.name/email`，写到 `~/.gitconfig`。runner 文件系统在同一个 job 的所有 step 之间共享，所以之后任何 `git commit` 都会用磁盘上已有的 identity：
+
+```yaml
+steps:
+  - uses: x-cmd/action@main
+    with:
+      git_user: ci-bot
+      git_email: ci@example.com
+      code: |
+        echo a >> README.md
+        git add . && git commit -m "a"
+
+  - uses: x-cmd/action@main
+    # 这里不传 git_user/git_email —— commit 仍然以 ci-bot 身份提交
+    with:
+      code: |
+        echo b >> README.md
+        git add . && git commit -m "b"
+```
+
+**跨 job** —— 同一个 workflow 的不同 job 通常跑在不同 runner，`~/.gitconfig` 不带过去。要做 `git commit` 的每个 job 都得再设一次（或者提到 job 级 `env:`，action 会回退到 env var）。**self-hosted 持久 runner** 上 `~/.gitconfig` 跨 job 留存，identity 会"粘"上去 —— 想换身份时显式覆盖。
+
 ### 要不要先 `actions/checkout`？
 
 不需要。action 自己用 `curl` 抓 dispatcher，只有在设了 `ws_owner_repo` 时才会 `git clone`。如果你自己的脚本需要当前 repo 的代码，另加一个 `actions/checkout@v4`。
