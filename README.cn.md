@@ -1,16 +1,33 @@
 # x-cmd/action
 
-> 一个 GitHub 复合 Action，用来为 CI 运行环境预置 **x-cmd**、**git**、**docker** 与 **SSH**。
+> 一个 GitHub 复合 Action，用来为 CI 运行环境预置 **x-cmd**、**git**、**docker** 与 **SSH** —— 让 workflow 只留下真正要执行的构建步骤。
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-
 [English](./README.md)
 
 ---
 
-## 1. 快速上手
+## 简介
 
-最基础的用法 —— 在 GitHub 官方 runner 上跑一条 **x-cmd** 命令：
+`x-cmd/action` 是 [GitHub 复合 Action](https://docs.github.com/zh/actions/creating-actions/creating-a-composite-action)，来自 `x-cmd/action` 仓库。它把 CI 启动时那些重复劳动 —— 装 x-cmd、配 git / docker / SSH、按需克隆工作区仓库、上传产物 —— 收拢成一个可复用的 step。
+
+```
+┌──────────────┐    ┌──────────────┐    ┌────────────────────┐
+│   init step  │ →  │   run step   │ →  │  upload-artifact   │
+│ ssh / x-cmd  │    │ prehook →    │    │  (固定最后一步)    │
+│ docker / git │    │ script →     │    │  ~/ws/.artifact    │
+│              │    │ code →       │    │                    │
+│              │    │ posthook     │    │                    │
+└──────────────┘    └──────────────┘    └────────────────────┘
+```
+
+你只管写业务 step，x-cmd 是怎么装到 runner 上的，不必操心。
+
+---
+
+## 1. 基本使用
+
+### 1.1 Hello world —— 一行内联命令
 
 ```yaml
 # .github/workflows/hello.yml
@@ -25,9 +42,9 @@ jobs:
           code: x cowsay "hello from x-cmd"
 ```
 
-就这样。action 会帮你装好 x-cmd，然后 `eval` 你写在 `code` 里的任何命令。
+就这样。action 帮你装好 x-cmd，然后 `eval` 你写在 `code` 里的命令。
 
-再多看几个一行示例感受一下：
+### 1.2 几个一行示例感受一下
 
 ```yaml
 # 查看 runner 信息
@@ -38,13 +55,14 @@ code: x eget use jq && jq --version
 
 # 查天气
 code: x wttr 'Beijing'
+
+# 看磁盘
+code: x df
 ```
 
----
+### 1.3 约定式脚本 —— 不用写 `script:`
 
-## 2. 约定式脚本
-
-如果不传 `script`，action 会默认 `source` `.x-cmd/<github.job>`。所以名为 `build` 的 job 会自动捡到 `.x-cmd/build`：
+如果不传 `script`，action 会默认 `source` `.x-cmd/<github.job>`。所以名为 `build` 的 job 自动捡到 `.x-cmd/build`：
 
 ```yaml
 # .github/workflows/build.yml
@@ -61,7 +79,7 @@ type x
 x ws build
 ```
 
-也可以显式指定路径：
+需要的话也可以显式指定：
 
 ```yaml
 - uses: x-cmd/action@main
@@ -71,9 +89,11 @@ x ws build
 
 ---
 
-## 3. 前置 / 后置 hook
+## 2. 高级使用
 
-在主脚本执行前后插入 shell 代码：
+### 2.1 前置 / 后置 hook
+
+在主脚本前后插入 shell 代码：
 
 ```yaml
 - uses: x-cmd/action@main
@@ -87,13 +107,11 @@ x ws build
       rm -rf build
 ```
 
-执行顺序：`prehook` → `script` → `code` → `posthook`。
+执行顺序：**`prehook` → `script` → `code` → `posthook`**。
 
----
+### 2.2 通过 SSH 推回 GitHub
 
-## 4. 推送回 GitHub
-
-用 `git_user` / `git_email` 设置提交身份，配合 `ssh_key` 完成推送。action 会启动 `ssh-agent`，从 [`x-cmd/knownhost`](https://github.com/x-cmd/knownhost) 写入 `known_hosts`，再 `ssh-add` 你的私钥：
+`git_user` / `git_email` 设提交身份，`ssh_key` 传私钥。action 会启动 `ssh-agent`，从 [`x-cmd/knownhost`](https://github.com/x-cmd/knownhost) 写入 `known_hosts`，再 `ssh-add` —— 不用自己接。
 
 ```yaml
 - uses: x-cmd/action@main
@@ -110,11 +128,9 @@ x ws build
       git push
 ```
 
----
+### 2.3 先克隆一个工作区仓库
 
-## 5. 先克隆一个工作区仓库
-
-设置 `ws_owner_repo` + `ws_repo_ref`，action 会先克隆该仓库、再 `cd` 进去跑你的脚本，克隆出来的目录会被符号链接为 `ws/`：
+设 `ws_owner_repo` + `ws_repo_ref`，action 会克隆该仓库、生成 `ws/` 符号链接，再 `cd` 进去跑你的脚本。
 
 ```yaml
 - uses: x-cmd/action@main
@@ -126,11 +142,11 @@ x ws build
     script: .x-cmd/build
 ```
 
-默认值：`ws_owner_repo` 回退到 `${{ github.repository }}`，`ws_repo_ref` 回退到 `${{ github.head_ref || github.ref_name }}`。
+默认值：`ws_owner_repo` → `${{ github.repository }}`，`ws_repo_ref` → `${{ github.head_ref || github.ref_name }}`。
 
----
+设了 `github_token` 就会走带认证的 HTTPS clone。
 
-## 6. Docker 登录与 buildx
+### 2.4 Docker 登录与 buildx
 
 ```yaml
 - uses: x-cmd/action@main
@@ -141,11 +157,9 @@ x ws build
     code: docker buildx build --platform linux/amd64,linux/arm64 -t me/app .
 ```
 
----
+### 2.5 上传构建产物
 
-## 7. 上传构建产物
-
-最后一步固定是 [`actions/upload-artifact@v4`](https://github.com/actions/upload-artifact)。任何放在 `~/ws/.artifact` 下的内容都会被上传：
+最后一步固定是 [`actions/upload-artifact@v4`](https://github.com/actions/upload-artifact)。任何放在 `~/ws/.artifact` 下的内容都会被上传。
 
 ```yaml
 - uses: x-cmd/action@main
@@ -163,9 +177,7 @@ x ws build
 | `artifact_not_found` | `ignore` | `warn` / `error` / `ignore` |
 | `artifact_retention_days` | `10` | 1–90 |
 
----
-
-## 8. 跨容器 / 跨 OS 做矩阵构建
+### 2.6 跨容器 / 跨 OS 做矩阵构建
 
 ```yaml
 jobs:
@@ -182,9 +194,41 @@ jobs:
           code: x ws build ${{ matrix.image }}
 ```
 
+### 2.7 切换 x-cmd 发布通道
+
+默认拉稳定版安装器（`index.html`）。想试 canary / beta / dev：
+
+```yaml
+- uses: x-cmd/action@main
+  env:
+    ___X_CMD_GHACTION_X: x1    # x0 / x1 / x2 → canary / beta / dev
+  with:
+    code: x --version
+```
+
+### 2.8 回退到环境变量
+
+任何 input 没显式传时都会回退到同名环境变量。matrix job 共享配置时特别好用：
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ssh_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      git_user: ci-bot
+      git_email: ci@example.com
+    strategy:
+      matrix: { os: [ubuntu-latest, macos-latest] }
+    steps:
+      - uses: x-cmd/action@main        # 不写 with:，直接吃 job 级 env
+        with:
+          code: x ws build ${{ matrix.os }}
+```
+
 ---
 
-## 9. 全部输入参数
+## 3. 全部参数
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -206,32 +250,115 @@ jobs:
 | `artifact_not_found` | `ignore` | `warn` / `error` / `ignore`。 |
 | `artifact_retention_days` | `10` | 1–90。 |
 
-> 所有 input 都会回退到同名 **环境变量**，对 matrix job 特别方便。
+`artifact_*` 这一组参数原样转发给固定最后一步的 `actions/upload-artifact@v4`，整个 action 总会运行它。
 
 ---
 
-## 10. 内部原理
+## 4. 原理分析
+
+### 4.1 仓库结构
 
 ```
 action.yml          复合 action 元信息与 steps
-lib/index.sh        核心 init / run 分发器（通过 raw.githubusercontent.com 拉取）
+lib/index.sh        核心 init / run 分发器（通过 curl 拉取）
 .github/workflows/  示例 workflow（art、build-docker、build-node、build-os、cowsay）
 .x-cmd/             约定目录：用 job 名命名的脚本，例如 .x-cmd/build
 LICENSE             Apache 2.0
 ```
 
-action 在内部按顺序完成六件事：
+### 4.2 为什么要拆两个 `shell: bash` step
 
-1. **SSH** —— 启动 `ssh-agent`，写入 `known_hosts`，`ssh-add` 私钥。
-2. **x-cmd** —— 从 [`x-cmd/get`](https://github.com/x-cmd/get) 拉取安装脚本，注入 `~/.x-cmd.root/`。
+composite action 的每个 step 都是**独立的 bash 进程**，变量与函数不共享。dispatcher 脚本先被下载到 `~/xghaction`，之后每个 step 都重新 `source` 它把函数找回来。
+
+### 4.3 第一步 —— `init`
+
+```yaml
+- run: |
+    curl -s https://raw.githubusercontent.com/x-cmd/action/main/lib/index.sh > ~/xghaction
+    . ~/xghaction init
+```
+
+`___x_cmd_ghaction_init` 串起四个子步骤：
+
+1. **SSH** —— 启动 `ssh-agent`，从 `x-cmd/knownhost` 写 `~/.ssh/known_hosts`，`ssh-add` 私钥。
+2. **x-cmd** —— `eval "$(curl ... x-cmd/get/main/<channel>)"` 装到 `~/.x-cmd.root/`。
 3. **Docker** —— 可选的 `docker login` 与 `docker buildx create --use`。
-4. **Git** —— 设置 `user.name` / `user.email`，按需克隆工作区仓库。
-5. **执行** —— `prehook` → `script` → `code` → `posthook`。
-6. **产物** —— 通过 `actions/upload-artifact@v4` 上传。
+4. **Git** —— 设 `user.name` / `user.email`，按需克隆 `ws_owner_repo` → `ws/`。
 
-## 许可证
+整个 init 用 `set +o errexit` + `|| true` 包好，任意子步骤失败不会拖垮 job。
 
-Apache License 2.0 —— 详见 [`LICENSE`](LICENSE)。
+### 4.4 第二步 —— `run`
+
+```yaml
+- run: . ~/xghaction run
+```
+
+`___x_cmd_ghaction_run`：
+
+```bash
+. "${___X_CMD_ROOT:-~/.x-cmd.root}/X"   # 真正把 x-cmd 加载进 PATH
+cd ws
+eval "$prehook"
+source "$script"
+eval "$code"
+eval "$posthook"
+```
+
+注意 init 只负责**装**，x-cmd 命令真正进入 shell 是在这一步完成之后。
+
+### 4.5 第三步 —— `actions/upload-artifact@v4`
+
+固定运行，把 `artifact_*` 几个 input 原样透传。
+
+---
+
+## 5. FAQ
+
+### 要不要先 `actions/checkout`？
+
+不需要。action 自己用 `curl` 抓 dispatcher，只有在设了 `ws_owner_repo` 时才会 `git clone`。如果你自己的脚本需要当前 repo 的代码，另加一个 `actions/checkout@v4`。
+
+### x-cmd 装不上会炸吗？
+
+不会。init step 是关掉 `errexit` 的，`eval` 还带 `|| true`。失败会出现在日志里，但 workflow 继续往下跑。想排查时找 `-------------------------------HOME[...]` 这一行以及随后的 curl 输出。
+
+### x-cmd 装在哪里？
+
+`~/.x-cmd.root/`。每个 runner、每个 job 独立，job 一结束就没了。
+
+### 能锁定特定版本的 x-cmd 吗？
+
+间接可以：锁这个 action 的版本（如 `x-cmd/action@v1.2.3`），再配 `___X_CMD_GHACTION_X` 选一个固定通道。安装器本身不支持按 commit hash 锁定。
+
+### macOS / Windows runner 能用吗？
+
+需要 `bash` + `curl` + `git` + `ssh-agent` + `docker` 都齐。GitHub 官方的 `ubuntu-latest` 和 `macos-latest` 是验证过的。`windows-latest` 理论能跑但不是主要目标，要 `shell: bash` 包一下并自己测。
+
+### 一个 job 里能多次调用吗？
+
+能。每次调用都自走一遍 init → run。第一个付安装代价，后面会复用同一个 `~/.x-cmd.root/`（安装器是幂等的）。
+
+### 为什么拆两个 bash step，不写一个脚本？
+
+composite-action 的 step 不共享 shell 状态，而 init（慢、装 x-cmd）和 run（快、跑业务）是两个阶段。拆开之后这个 action 才**可组合**——你可以先做自己的 setup，再 `uses: x-cmd/action` 只跑 run 阶段。
+
+### `ws/` 是怎么生成的？
+
+`ws_owner_repo` 和 `ws_repo_ref` 都设了的时候，action 会 `git clone --branch <ref> <url>`，再 `ln -s $(pwd)/<repo> $(pwd)/ws`。进 `ws/` 之后 `script:` 的相对路径就是相对于这个仓库的根。
+
+### `~/xghaction` 是什么？
+
+第一步下载下来的临时 dispatcher 文件，第二步会重新 `source` 它。别自己往这个路径写东西。
+
+### 我的 artifact 没出现？
+
+最常见的原因：
+
+- `artifact_path` 写错了（默认是 `~/ws/.artifact`，不是 `./artifact`）。
+- `code:` 跑完了但没往那个路径写东西。
+- `artifact_not_found` 设成了 `error`，把真实问题藏起来了。先改成 `warn` 看一眼。
+
+---
 
 ## 相关链接
 
@@ -240,3 +367,7 @@ Apache License 2.0 —— 详见 [`LICENSE`](LICENSE)。
 - x-cmd known hosts：<https://github.com/x-cmd/knownhost>
 - 复合 Action 文档：<https://docs.github.com/zh/actions/creating-actions/creating-a-composite-action>
 - `actions/upload-artifact@v4`：<https://github.com/actions/upload-artifact>
+
+## 许可证
+
+Apache License 2.0 —— 详见 [`LICENSE`](LICENSE)。
