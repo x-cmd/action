@@ -149,16 +149,12 @@ steps:
 
 #### 姿势 C —— 可移植脚本（推荐）
 
-**一份脚本**，本地、CI、任何环境都能跑。脚本自己负责把 x-cmd 加载好，永远不假设环境。
+**一份脚本**，本地、CI、任何环境都能跑。第一行把 x-cmd 加载进当前 shell。
 
 ```bash
 # scripts/ci.sh —— 可移植：任何 shell、任何机器都能直接跑
 
-# 如果 x-cmd 还没加载，先把它加载进来。
-# （经 x-cmd/action 走 CI 时已经在；本地开发通常也已经在 PATH 里。）
-case $- in *i*) ;; *) . "$HOME/.x-cmd.root/X" >/dev/null 2>&1 || {
-    eval "$(curl -s https://get.x-cmd.com)" >/dev/null 2>&1 || true
-} ;; esac
+. "$HOME/.x-cmd.root/X"
 
 x cowsay "step 1"
 x sysinfo | head
@@ -176,7 +172,7 @@ x ws build
 
 - 同一个文件，`./scripts/ci.sh` 在本地能跑，进了 GitHub Actions 也能跑。
 - 脚本是唯一的事实来源 —— 本地开发与 CI 之间不用复制粘贴。
-- 当 x-cmd 已经加载时（交互式 shell、或 action 已经走完 init），bootstrap 这一行就是个空操作，开销只付一次。
+- 没装 x-cmd 时脚本会响亮地报错 —— 这正是你想要的。
 - 脚本长大了随便重构，不用动 `action.yml`。
 
 ---
@@ -450,17 +446,15 @@ composite-action 的 step 不共享 shell 状态，而 init（慢、装 x-cmd）
 
 - **多行 `code:`** —— 一次性内联序列。
 - **重复调用 action** —— 步骤之间彼此独立时最干净。
-- **可移植脚本（推荐）** —— 一份文件、自带 bootstrap，本地与 CI 都能跑。Bootstrap 那一行长这样：
+- **可移植脚本（推荐）** —— 一份文件，本地与 CI 都能跑。在脚本顶部加一行：
 
   ```bash
-  case $- in *i*) ;; *) . "$HOME/.x-cmd.root/X" >/dev/null 2>&1 || {
-      eval "$(curl -s https://get.x-cmd.com)" >/dev/null 2>&1 || true
-  } ;; esac
+  . "$HOME/.x-cmd.root/X"
   ```
 
-### 为什么 bootstrap 用 `case $- in *i*) ;; *) ...`？
+  经 `x-cmd/action` 走 CI 时，`init` step 会先把 x-cmd 装好，这条 `source` 自然成功。本地则先跑一次 `eval "$(curl -s https://get.x-cmd.com)"` 装上，之后这同一行就能反复用。
 
-`case` 查的是 shell 的选项标志 `$-`。`*i*` 命中代表当前 shell 是**交互式** —— 这种情况下 x-cmd 通常已经被 `.bashrc` / `.zshrc` 加载到 PATH 了，bootstrap 直接跳过。**非交互式** shell（CI、`bash script.sh`、`sh -c "..."`）里 `$-` 不含 `i`，于是走 `~/.x-cmd.root/X` source（或者缺失时 curl 装）。当 x-cmd 已可用时整行就是空操作。
+  `X` 本身**是幂等的** —— 在已加载 x-cmd 的 shell 上再 source 一次等于空操作，所以这行放在每个脚本顶部都是安全的（脚本本身被 source 多次也安全）。
 
 ### 我的 artifact 没出现？
 

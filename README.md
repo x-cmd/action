@@ -149,16 +149,12 @@ steps:
 
 #### Pattern C — portable script (recommended)
 
-Write the script **once**, run it **locally, in CI, anywhere**. The script bootstraps x-cmd itself so it never assumes the env.
+Write the script **once**, run it **locally, in CI, anywhere**. One line at the top loads x-cmd into the current shell.
 
 ```bash
 # scripts/ci.sh — portable: works in any shell on any machine
 
-# Bootstrap x-cmd if it isn't already loaded.
-# (CI via x-cmd/action has it; local dev usually has it on PATH.)
-case $- in *i*) ;; *) . "$HOME/.x-cmd.root/X" >/dev/null 2>&1 || {
-    eval "$(curl -s https://get.x-cmd.com)" >/dev/null 2>&1 || true
-} ;; esac
+. "$HOME/.x-cmd.root/X"
 
 x cowsay "step 1"
 x sysinfo | head
@@ -176,7 +172,7 @@ x ws build
 
 - Same file runs `./scripts/ci.sh` on your laptop and inside GitHub Actions.
 - The script is the single source of truth — no copy-paste between local dev and CI.
-- The bootstrap line is a no-op when x-cmd is already loaded (interactive shell, or after the action ran init), so the cost is paid once.
+- When x-cmd is missing, the script fails loudly with a clear error — which is what you want.
 - When the script grows, refactor freely without touching `action.yml`.
 
 ---
@@ -450,17 +446,15 @@ Three options, see [§1.4](#14-running-multiple-commands--three-patterns):
 
 - **Multi-line `code:`** for throwaway inline sequences.
 - **Repeat the action** for cleanly separated, unrelated steps.
-- **Portable script** (recommended) — one file, self-bootstrapping, runs locally and in CI. The bootstrap line is:
+- **Portable script** (recommended) — one file, runs locally and in CI. Add this line at the top:
 
   ```bash
-  case $- in *i*) ;; *) . "$HOME/.x-cmd.root/X" >/dev/null 2>&1 || {
-      eval "$(curl -s https://get.x-cmd.com)" >/dev/null 2>&1 || true
-  } ;; esac
+  . "$HOME/.x-cmd.root/X"
   ```
 
-### Why does the portable-script bootstrap use `case $- in *i*) ;; *) ...`?
+  In CI via `x-cmd/action`, x-cmd is installed by the `init` step before the script runs, so this `source` succeeds. Locally, run `eval "$(curl -s https://get.x-cmd.com)"` once to install, then the same line works thereafter.
 
-The `case` checks the shell's option flags (`$-`). The `*i*` matches when the shell is **interactive** — in which case x-cmd was likely loaded by your shell init (`.bashrc`, `.zshrc`, etc.) and is on PATH already, so we skip the bootstrap. In **non-interactive** shells (CI, `bash script.sh`, `sh -c "..."`), `$-` does not contain `i`, and we source `~/.x-cmd.root/X` (or curl-install if it's missing). The whole line is a no-op when x-cmd is already available.
+  `X` is **idempotent** — sourcing it again on a shell where x-cmd is already loaded is a no-op, so it's safe to leave the line at the top of every script (and safe to source the script itself multiple times).
 
 ### Why is my artifact not appearing?
 
