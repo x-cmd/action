@@ -25,6 +25,30 @@ You just write a step. You don't worry about how x-cmd gets onto the runner.
 
 ---
 
+## Design Philosophy — a portable Action
+
+Most GitHub Actions are tightly coupled to GitHub's runtime. `actions/checkout` checks out a repo in a GitHub-specific way. `actions/setup-node` downloads Node in a GitHub-specific way. The moment you stitch your CI together out of these, your script **only runs on GitHub** — and often only on GitHub's hosted runners.
+
+`x-cmd/action` takes the opposite approach: **write your script in plain POSIX shell, run it anywhere.**
+
+The action does exactly three things:
+
+1. **Install x-cmd** — a POSIX-compatible shell library (works in `dash`, `ash`, `bash`, `zsh`) into `~/.x-cmd.root/`. Once installed, `x cowsay`, `x ws build`, `x eget`, etc. are just shell commands on `PATH`.
+2. **Run your script** — `source` it (or `eval` the inline `code:`), with x-cmd already loaded. This is the **same file** you'd run locally with `./scripts/ci.sh`. No `${{ github.* }}` interpolation, no `actions/checkout` shim, no YAML quoting gymnastics.
+3. **Upload the artifact** — the only step that's truly GitHub-specific, because artifact storage is GitHub's service. Anything you write to `~/ws/.artifact` gets uploaded.
+
+That's the whole design. `git` is just `git`, `docker` is just `docker`, `ssh` is just `ssh`. The action installs the shell library you already know how to use.
+
+**Why this matters:**
+
+- **Your CI script *is* your dev script.** Same file, same syntax, same commands. Debug locally with `./scripts/ci.sh` — no `act`, no Docker, no PR-then-watch-logs loop.
+- **CI-provider-agnostic.** Switching from GitHub Actions to another provider means changing one line (`- uses: x-cmd/action@main` → the new provider's equivalent). The script body is untouched.
+- **The artifact is the bridge between local and CI.** Locally you keep state on disk; in CI the runner is ephemeral, so the action uploads `~/ws/.artifact` automatically — you get back the same files you would have had if you'd run the script yourself.
+
+In other words: **CI = `install x-cmd` + `run my script` + `upload artifact`.** That's it.
+
+---
+
 ## 1. Basic Usage
 
 ### 1.1 Hello world — one inline command
@@ -324,6 +348,8 @@ jobs:
 
 ## 4. How it Works
 
+At the user level, the action is just three steps: **install x-cmd → run your script → upload artifact.** The rest of this section is the mechanical view of how those three steps are wired up.
+
 ### 4.1 Layout
 
 ```
@@ -336,7 +362,7 @@ LICENSE             Apache 2.0
 
 ### 4.2 Why two `shell: bash` steps
 
-Composite-action steps are independent shell processes — variables and functions don't carry over. The dispatcher script is downloaded to `~/xghaction` once, then re-sourced in each step so its functions come back.
+The three user-facing steps map onto three composite steps: `init` runs the install, `run` executes the script, and the artifact upload is a third. Composite-action steps are independent shell processes — variables and functions don't carry over — so the dispatcher script is downloaded to `~/xghaction` once, then re-sourced in each step so its functions come back.
 
 ### 4.3 Step 1 — `init`
 

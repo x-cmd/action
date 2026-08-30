@@ -25,6 +25,30 @@
 
 ---
 
+## 设计思想 —— 可移植的 Action
+
+大多数 GitHub Action 都和 GitHub 的运行时深度耦合：`actions/checkout` 用 GitHub 特有的方式拉代码，`actions/setup-node` 用 GitHub 特有的方式装 Node。一旦你拿这些 action 把 CI 拼起来，你的脚本**就只能在 GitHub 上跑** —— 而且往往只能在 GitHub 官方 runner 上跑。
+
+`x-cmd/action` 反过来：**用 POSIX shell 写脚本，到哪里都能跑。**
+
+整个 action 只做三件事：
+
+1. **装 x-cmd** —— 一个兼容 POSIX 的 shell 库（`dash`、`ash`、`bash`、`zsh` 都能跑），装到 `~/.x-cmd.root/`。装完以后 `x cowsay`、`x ws build`、`x eget` 就是 `PATH` 上的普通命令。
+2. **跑你的脚本** —— `source` 它（或者 `eval` 内联的 `code:`），x-cmd 已经加载好了。这个脚本就是你在本地 `./scripts/ci.sh` 会跑的**同一个文件**。不用 `${{ github.* }}` 插值、不用 `actions/checkout` 套壳、也不用和 YAML 引号搏斗。
+3. **上传产物** —— 唯一真正和 GitHub 强相关的步骤，因为产物存储是 GitHub 自己的服务。任何写到 `~/ws/.artifact` 下的东西都会被上传。
+
+就这三件事。`git` 就是 `git`，`docker` 就是 `docker`，`ssh` 就是 `ssh`。action 只是装了你本来就会用的 shell 库。
+
+**为什么这很重要：**
+
+- **CI 脚本就是开发脚本。** 同一个文件，同一种语法，同一组命令。本地 `./scripts/ci.sh` 就能调，不用 `act`、不用 Docker、不用提了 PR 再看日志。
+- **CI 提供方无关。** 从 GitHub Actions 切到别的平台，只改一行（`- uses: x-cmd/action@main` 换成新平台的等价物）。脚本正文一行都不用动。
+- **Artifact 是本地与 CI 之间的桥。** 本地开发时状态留在磁盘上，CI runner 是临时的，所以 action 自动把 `~/ws/.artifact` 上传 —— 你拿到的产物就像自己亲手跑过这个脚本一样。
+
+一句话：**CI = `装 x-cmd` + `跑脚本` + `传 artifact`。** 就这些。
+
+---
+
 ## 1. 基本使用
 
 ### 1.1 Hello world —— 一行内联命令
@@ -324,6 +348,8 @@ jobs:
 
 ## 4. 原理分析
 
+从用户视角看，action 就是三步：**装 x-cmd → 跑脚本 → 传 artifact。** 本节展开这三步在工程上是怎么接起来的。
+
 ### 4.1 仓库结构
 
 ```
@@ -334,9 +360,9 @@ lib/index.sh        核心 init / run 分发器（通过 curl 拉取）
 LICENSE             Apache 2.0
 ```
 
-### 4.2 为什么要拆两个 `shell: bash` step
+### 4.2 为什么要拆多个 `shell: bash` step
 
-composite action 的每个 step 都是**独立的 bash 进程**，变量与函数不共享。dispatcher 脚本先被下载到 `~/xghaction`，之后每个 step 都重新 `source` 它把函数找回来。
+用户视角的三步，对应到 composite action 的三个 step：init 负责装、run 负责跑、artifact 上传独立一步。composite action 的每个 step 都是**独立的 bash 进程**，变量与函数不共享 —— dispatcher 脚本先被下载到 `~/xghaction`，之后每个 step 都重新 `source` 它把函数找回来。
 
 ### 4.3 第一步 —— `init`
 
