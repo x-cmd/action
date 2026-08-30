@@ -87,6 +87,74 @@ Override the path explicitly:
     script: scripts/ci.sh
 ```
 
+### 1.4 Running multiple commands — three patterns
+
+Pick one based on how serious the script is.
+
+#### Pattern A — multi-line `code:` (throwaway)
+
+Quickest. Use when the commands are short and tied to the workflow file.
+
+```yaml
+- uses: x-cmd/action@main
+  with:
+    code: |
+      x cowsay "step 1"
+      x sysinfo | head
+      x ws build
+```
+
+#### Pattern B — repeat the action (cleanest separation)
+
+Each invocation is independent. Good when steps are conceptually unrelated.
+
+```yaml
+steps:
+  - uses: x-cmd/action@main
+    with:
+      code: x ws build
+
+  - uses: x-cmd/action@main
+    with:
+      code: x ws test
+
+  - uses: x-cmd/action@main
+    with:
+      code: x ws publish
+```
+
+#### Pattern C — portable script (recommended)
+
+Write the script **once**, run it **locally, in CI, anywhere**. The script bootstraps x-cmd itself so it never assumes the env.
+
+```bash
+# scripts/ci.sh — portable: works in any shell on any machine
+
+# Bootstrap x-cmd if it isn't already loaded.
+# (CI via x-cmd/action has it; local dev usually has it on PATH.)
+case $- in *i*) ;; *) . "$HOME/.x-cmd.root/X" >/dev/null 2>&1 || {
+    eval "$(curl -s https://get.x-cmd.com)" >/dev/null 2>&1 || true
+} ;; esac
+
+x cowsay "step 1"
+x sysinfo | head
+x ws build
+```
+
+```yaml
+# .github/workflows/build.yml
+- uses: x-cmd/action@main
+  with:
+    script: scripts/ci.sh
+```
+
+**Why this is the recommended pattern:**
+
+- Same file runs `./scripts/ci.sh` on your laptop and inside GitHub Actions.
+- The script is the single source of truth — no copy-paste between local dev and CI.
+- The bootstrap line is a no-op when x-cmd is already loaded (interactive shell, or after the action ran init), so the cost is paid once.
+- When the script grows, refactor freely without touching `action.yml`.
+
 ---
 
 ## 2. Advanced Usage
@@ -349,6 +417,24 @@ When `ws_owner_repo` and `ws_repo_ref` are both set, the action does `git clone 
 ### What's `~/xghaction`?
 
 A transient dispatcher file downloaded by the first step and re-sourced by the second. Safe to ignore; don't put your own file at that path.
+
+### How do I run multiple x-cmd commands?
+
+Three options, see [§1.4](#14-running-multiple-commands--three-patterns):
+
+- **Multi-line `code:`** for throwaway inline sequences.
+- **Repeat the action** for cleanly separated, unrelated steps.
+- **Portable script** (recommended) — one file, self-bootstrapping, runs locally and in CI. The bootstrap line is:
+
+  ```bash
+  case $- in *i*) ;; *) . "$HOME/.x-cmd.root/X" >/dev/null 2>&1 || {
+      eval "$(curl -s https://get.x-cmd.com)" >/dev/null 2>&1 || true
+  } ;; esac
+  ```
+
+### Why does the portable-script bootstrap use `case $- in *i*) ;; *) ...`?
+
+The `case` checks the shell's option flags (`$-`). The `*i*` matches when the shell is **interactive** — in which case x-cmd was likely loaded by your shell init (`.bashrc`, `.zshrc`, etc.) and is on PATH already, so we skip the bootstrap. In **non-interactive** shells (CI, `bash script.sh`, `sh -c "..."`), `$-` does not contain `i`, and we source `~/.x-cmd.root/X` (or curl-install if it's missing). The whole line is a no-op when x-cmd is already available.
 
 ### Why is my artifact not appearing?
 

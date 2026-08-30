@@ -87,6 +87,74 @@ x ws build
     script: scripts/ci.sh
 ```
 
+### 1.4 跑多条命令 —— 三种姿势
+
+按脚本的"严肃程度"挑一种。
+
+#### 姿势 A —— 多行 `code:`（一次性）
+
+最快。命令又短、又只跟这个 workflow 有关时用。
+
+```yaml
+- uses: x-cmd/action@main
+  with:
+    code: |
+      x cowsay "step 1"
+      x sysinfo | head
+      x ws build
+```
+
+#### 姿势 B —— 重复调用 action（最干净）
+
+每次调用互相独立。步骤之间没有强关联时用这个最清爽。
+
+```yaml
+steps:
+  - uses: x-cmd/action@main
+    with:
+      code: x ws build
+
+  - uses: x-cmd/action@main
+    with:
+      code: x ws test
+
+  - uses: x-cmd/action@main
+    with:
+      code: x ws publish
+```
+
+#### 姿势 C —— 可移植脚本（推荐）
+
+**一份脚本**，本地、CI、任何环境都能跑。脚本自己负责把 x-cmd 加载好，永远不假设环境。
+
+```bash
+# scripts/ci.sh —— 可移植：任何 shell、任何机器都能直接跑
+
+# 如果 x-cmd 还没加载，先把它加载进来。
+# （经 x-cmd/action 走 CI 时已经在；本地开发通常也已经在 PATH 里。）
+case $- in *i*) ;; *) . "$HOME/.x-cmd.root/X" >/dev/null 2>&1 || {
+    eval "$(curl -s https://get.x-cmd.com)" >/dev/null 2>&1 || true
+} ;; esac
+
+x cowsay "step 1"
+x sysinfo | head
+x ws build
+```
+
+```yaml
+# .github/workflows/build.yml
+- uses: x-cmd/action@main
+  with:
+    script: scripts/ci.sh
+```
+
+**为什么这是推荐姿势：**
+
+- 同一个文件，`./scripts/ci.sh` 在本地能跑，进了 GitHub Actions 也能跑。
+- 脚本是唯一的事实来源 —— 本地开发与 CI 之间不用复制粘贴。
+- 当 x-cmd 已经加载时（交互式 shell、或 action 已经走完 init），bootstrap 这一行就是个空操作，开销只付一次。
+- 脚本长大了随便重构，不用动 `action.yml`。
+
 ---
 
 ## 2. 高级使用
@@ -349,6 +417,24 @@ composite-action 的 step 不共享 shell 状态，而 init（慢、装 x-cmd）
 ### `~/xghaction` 是什么？
 
 第一步下载下来的临时 dispatcher 文件，第二步会重新 `source` 它。别自己往这个路径写东西。
+
+### 怎么跑多条 x-cmd 命令？
+
+三种姿势，见 [§1.4](#14-跑多条命令--三种姿势)：
+
+- **多行 `code:`** —— 一次性内联序列。
+- **重复调用 action** —— 步骤之间彼此独立时最干净。
+- **可移植脚本（推荐）** —— 一份文件、自带 bootstrap，本地与 CI 都能跑。Bootstrap 那一行长这样：
+
+  ```bash
+  case $- in *i*) ;; *) . "$HOME/.x-cmd.root/X" >/dev/null 2>&1 || {
+      eval "$(curl -s https://get.x-cmd.com)" >/dev/null 2>&1 || true
+  } ;; esac
+  ```
+
+### 为什么 bootstrap 用 `case $- in *i*) ;; *) ...`？
+
+`case` 查的是 shell 的选项标志 `$-`。`*i*` 命中代表当前 shell 是**交互式** —— 这种情况下 x-cmd 通常已经被 `.bashrc` / `.zshrc` 加载到 PATH 了，bootstrap 直接跳过。**非交互式** shell（CI、`bash script.sh`、`sh -c "..."`）里 `$-` 不含 `i`，于是走 `~/.x-cmd.root/X` source（或者缺失时 curl 装）。当 x-cmd 已可用时整行就是空操作。
 
 ### 我的 artifact 没出现？
 
