@@ -24,8 +24,6 @@ jobs:
             git clone git@github.com:x-cmd/action.git repo
             cd repo
             echo "pushed by x-cmd/action at $(date -u)" >> .writeback
-            git config user.name "example-bot"
-            git config user.email "bot@example.com"
             git add .writeback
             git commit -m "ci: writeback demo"
             git push origin HEAD:refs/heads/writeback-demo
