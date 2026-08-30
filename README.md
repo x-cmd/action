@@ -68,13 +68,15 @@ fi
 - **In a script** — paste at the top. Idempotent: re-runs fine because `X` itself guards against double-loading.
 - **Globally (per user)** — paste into `~/.bashrc` / `~/.zshrc`. After login, `x <module>` works in every interactive shell.
 
-## A.2 Invoke x-cmd — two equivalent modes
+## A.2 Calling x-cmd — two distinct modes
+
+The two invocations styles look interchangeable but are **not equivalent**. Pick deliberately based on whether you need shell state to survive across calls.
 
 ```bash
-# Mode 1: as an external command — fresh subshell each call, no setup needed
+# Mode 1: as an external command — fresh subshell each call
 x-cmd cowsay "hello"
 
-# Mode 2: load into current shell, then call x repeatedly (faster, shares state)
+# Mode 2: load x-cmd into the current shell, then call x as a function
 . "$HOME/.x-cmd.root/X"
 x cowsay "hello"
 x ws build
@@ -83,12 +85,17 @@ x sysinfo
 
 | | Mode 1: `x-cmd <module>` | Mode 2: `. X` then `x <module>` |
 | --- | --- | --- |
+| What `x` is | an external program on `PATH` | a shell function defined by sourcing `X` |
 | Setup needed | none | must `. X` first |
-| Per-call cost | forks a subshell | direct function call |
-| Shell state shared | no (fresh shell each call) | yes (within the loaded shell) |
-| Use when | one-off, cron, `sh -c`, before login scripts | interactive shell, scripts that call `x` many times |
+| Per-call cost | fork + exec | direct function call |
+| Sees shell-local vars / functions / aliases | no (fresh shell each call) | yes |
+| Can mutate the calling shell (set vars, define aliases, modify `PATH`) | no | yes |
+| Available in shells that haven't sourced `X` | yes, if `x-cmd` is on `PATH` | no |
+| Typical use | cron jobs, `sh -c "..."`, before login scripts, one-off CLI | interactive shell, scripts that call `x` many times |
 
-Mode 1 is the simplest — works in any shell, even before login scripts run. Mode 2 is faster for batch use and lets multiple commands share state.
+**The non-equivalence in one sentence:** Mode 2 lets `x` participate in your shell's state; Mode 1 cannot. If your script needs `x` to see (or change) variables defined outside the call, you need Mode 2.
+
+Note also that the two are not always both available — Mode 1 requires `x-cmd` to have been installed as an external command on `PATH`; Mode 2 only needs the `X` source file to exist. The `if [ -f "$HOME/.x-cmd.root/X" ]` pattern in §A.1 covers Mode 2's bootstrap regardless of whether Mode 1 is wired up.
 
 ## A.3 What `x-cmd/action` does, in those terms
 
