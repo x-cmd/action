@@ -428,6 +428,17 @@ LICENSE             Apache 2.0
 
 整个 init 用 `set +o errexit` + `|| true` 包好，任意子步骤失败不会拖垮 job。
 
+**按需执行。** 每个子步骤都受对应的 input 守门 —— 没有 input（或同名环境变量）就不跑。所以一个只用 `code:` 的极简 workflow 实际上只为装 x-cmd 付出了代价：
+
+| 子步骤 | 触发条件 |
+| --- | --- |
+| 装 x-cmd | 总是执行 |
+| SSH（known_hosts、ssh-agent、ssh-add） | 设了 `ssh_key` |
+| Docker login | `docker_username` **和** `docker_password` 都设了 |
+| Docker buildx init | `docker_buildx_init` 为真值 |
+| Git `user.name` / `user.email` | `git_user` **或** `git_email` 设了 |
+| 克隆工作区仓库 | `ws_owner_repo` **和** `ws_repo_ref` 都设了 |
+
 ### 4.4 第二步 —— `run`
 
 ```yaml
@@ -450,6 +461,19 @@ eval "$posthook"
 ### 4.5 第三步 —— `actions/upload-artifact@v4`
 
 固定运行，把 `artifact_*` 几个 input 原样透传。
+
+### 4.6 边界 —— 什么是一等公民，什么委托给 x-cmd
+
+`x-cmd/action` 只管一小撮"一等公民"基础设施：**SSH、Docker、AI 凭证，以及自带的 `GITHUB_TOKEN`**。其他一切 —— 语言工具链、包管理器、linter、任何你平时 `apt install` 或 `brew install` 的东西 —— **明确不在本 action 的职责范围内**。
+
+**为什么这样切：**
+
+- **SSH、Docker、AI、`gh`-token 既是必需的，又涉及安全。** 它们各有专用 input，secret 不必塞进 `code:` 字符串；action 才能把它们正确接进系统（加载 `ssh-agent`、写 `~/.docker/config.json` 等等），不至于让脚本各自手撸一遍。
+- **其他工具可以在脚本里按需装。** x-cmd 本身就为大多数生态提供了模块；如果 action 全包，每次调用都得重下几十个工具链。让脚本按需拉才是更轻的姿势。
+- **目标：本地与 CI 一致，配置最小化。** 你坐到自己笔记本前，已经有 `git`、`ssh`、`docker`，再加上你常用的语言（`node`、`python` 等）。`x-cmd/action` 把前半截默认复制过来；后半截只需要在脚本里一行 —— `x env use node`、`x env use python` 等。
+- **未来方向。** x-cmd 的 hub 计划把 `npm`、`crates.io`、`pip`、`jsr` 都做成 x-cmd 一等模块。届时 action 完全不用为它们加 input —— `x npm`、`x cargo` 等在 action 里和本地一样直接用。
+
+**一句话：** action 只负责抹平*基础设施*的摩擦。*工具链*的摩擦交给 x-cmd。
 
 ---
 

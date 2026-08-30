@@ -428,6 +428,17 @@ The three user-facing steps map onto three composite steps: `init` runs the inst
 
 All wrapped in `set +o errexit` and `|| true`, so a sub-step failure doesn't kill the job.
 
+**Conditional execution.** Every sub-step is gated by its inputs — without the matching input (or env var), the sub-step is skipped entirely. So a minimal workflow using only `code:` only pays for the x-cmd install:
+
+| Sub-step | Runs when |
+| --- | --- |
+| x-cmd install | always |
+| SSH (known_hosts, ssh-agent, ssh-add) | `ssh_key` is set |
+| Docker login | `docker_username` **and** `docker_password` are both set |
+| Docker buildx init | `docker_buildx_init` is truthy |
+| Git `user.name` / `user.email` | `git_user` **or** `git_email` is set |
+| Clone workspace repo | `ws_owner_repo` **and** `ws_repo_ref` are both set |
+
 ### 4.4 Step 2 — `run`
 
 ```yaml
@@ -450,6 +461,19 @@ Note that init is for **setup**; x-cmd is only loaded into the shell here, after
 ### 4.5 Step 3 — `actions/upload-artifact@v4`
 
 Always runs. Forwards `artifact_*` inputs verbatim.
+
+### 4.6 Scope — what's first-class, what's delegated
+
+`x-cmd/action` only handles a small set of "first-class" infrastructure: **SSH, Docker, AI credentials, and the auto-available `GITHUB_TOKEN`**. Everything else — language toolchains, package managers, linters, anything you'd `apt install` or `brew install` — is deliberately **not** the action's job.
+
+**Why this split:**
+
+- **SSH, Docker, AI, and `gh`-token are both essential and security-sensitive.** They each get a dedicated input so secrets don't have to be pasted into a `code:` string, and so the action can wire them into the system correctly (loading `ssh-agent`, writing `~/.docker/config.json`, etc.) rather than leaving the script to do it ad-hoc.
+- **Other tools can be installed on-demand from inside the script.** x-cmd itself ships modules for most ecosystems; if the action tried to provide all of them, every invocation would re-download dozens of toolchains. Better to let the script pull what it needs, when it needs it.
+- **Goal: parity with local dev, with minimum config.** When you sit down at your laptop you already have `git`, `ssh`, `docker`, plus whatever languages you happen to use (`node`, `python`, etc.). `x-cmd/action` replicates the first half out of the box; the second half is one line in the script — `x env use node`, `x env use python`, etc.
+- **Future direction.** x-cmd's hub will surface `npm`, `crates.io`, `pip`, `jsr` as first-class x-cmd modules. Once that lands, no action input is needed for them — `x npm`, `x cargo`, etc. will work the same way inside the action as they do locally.
+
+**In short:** the action's job is to remove *infrastructure* friction. *Toolchain* friction is x-cmd's job.
 
 ---
 
