@@ -538,6 +538,13 @@ For **GitHub-hosted runners** (the default — `ubuntu-latest`, `macos-latest`, 
 
 For **self-hosted runners**, this assumption doesn't hold — your runner is wherever you put it. Connectivity to `raw.githubusercontent.com` and to `get.x-cmd.com` will depend on your own network. In that case the CDN URL may actually be faster, but you can still use the action and let it pick the raw URL; just don't assume the topology benefit applies.
 
+**One important counterpoint.** `get.x-cmd.com` carries a regional routing layer that `raw.githubusercontent.com` does not — explicit support for connectivity from China is part of why the CDN exists. So:
+
+- For **hosted runners** (mostly in US/EU data centers), `raw.githubusercontent.com` wins on the internal-fetch argument.
+- For **self-hosted runners in China**, or for **users in China installing x-cmd locally**, `get.x-cmd.com` is often the more reliable choice — its routing is tuned for that network.
+
+The action's hard-coded raw URL is the right default for the common case (hosted runners worldwide), but it's worth knowing the trade-off if you're running x-cmd from inside China.
+
 **The two real differences in summary:**
 
 | | `x-cmd/action` | `eval "$(curl ... get.x-cmd.com)"` |

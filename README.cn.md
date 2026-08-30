@@ -534,6 +534,13 @@ eval "$(curl "https://raw.githubusercontent.com/x-cmd/get/main/$___X_CMD_GHACTIO
 
 但对 **self-hosted runner** 不成立 —— 你的 runner 放在哪里都行，连 `raw.githubusercontent.com` 和连 `get.x-cmd.com` 的速度取决于你自己的网络。这时候可能 CDN 反而更快。不过 action 仍然可以用，只是别假设这个拓扑优势在 self-hosted 上同样成立。
 
+**一个重要的反向因素。** `get.x-cmd.com` 本身带有一层区域路由 —— 其中就包括对中国大陆连通性的专门优化，这层路由在 `raw.githubusercontent.com` 上是没有的。所以：
+
+- 对 **托管 runner**（基本都在美/欧数据中心），`raw.githubusercontent.com` 在内网取数这件事上占优。
+- 对 **部署在国内的 self-hosted runner**，以及 **国内用户在本地装 x-cmd**，`get.x-cmd.com` 反而常常更稳 —— 它的路由就是为这类网络调过的。
+
+action 把 raw URL 硬编码作为默认值，覆盖的是最常见的情况（世界各地的托管 runner），但如果你的 x-cmd 是从国内跑的，这个权衡要心里有数。
+
 **总结两个真正不一样的点：**
 
 | | `x-cmd/action` | `eval "$(curl ... get.x-cmd.com)"` |
