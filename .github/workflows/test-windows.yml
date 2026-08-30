@@ -1,0 +1,25 @@
+# Example: x-cmd/action on windows-latest (Git Bash).
+# Demonstrates: cross-platform support — GitHub's Windows runners ship Git Bash,
+#               which the action's `shell: bash` steps use automatically.
+# Note: HOME on Git Bash points to the runner's user profile translated to
+#       Unix-style (e.g. /c/Users/runneradmin), so x-cmd installs to a path
+#       Git Bash understands.
+
+name: Example — Windows Runner (Git Bash)
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: x-cmd/action on windows-latest via Git Bash
+        uses: x-cmd/action@main
+        with:
+          code: |
+            x cowsay "hello from windows"
+            echo "USERPROFILE=$USERPROFILE"
+            echo "HOME=$HOME"
+            echo "PATH segments containing x-cmd:"
+            echo "$PATH" | tr ':' '\n' | grep -i 'x-cmd\|local/bin' || true
+            x sysinfo | head -5
