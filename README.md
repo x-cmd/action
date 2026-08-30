@@ -49,6 +49,57 @@ In other words: **CI = `install x-cmd` + `run my script` + `upload artifact`.** 
 
 ---
 
+# Part A — Using x-cmd Without This Action
+
+> Skip everything below if you came here just to plug `x-cmd/action` into a workflow. This part is for users who **don't** need GitHub Actions, or want to understand what the action is doing under the hood.
+
+## A.1 Load x-cmd into a shell
+
+The same one-liner works in **both** a script body and a shell init file:
+
+```bash
+if [ -f "$HOME/.x-cmd.root/X" ]; then
+    . "$HOME/.x-cmd.root/X"
+else
+    eval "$(curl -s https://get.x-cmd.com)"
+fi
+```
+
+- **In a script** — paste at the top. Idempotent: re-runs fine because `X` itself guards against double-loading.
+- **Globally (per user)** — paste into `~/.bashrc` / `~/.zshrc`. After login, `x <module>` works in every interactive shell.
+
+## A.2 Invoke x-cmd — two equivalent modes
+
+```bash
+# Mode 1: as an external command — fresh subshell each call, no setup needed
+x-cmd cowsay "hello"
+
+# Mode 2: load into current shell, then call x repeatedly (faster, shares state)
+. "$HOME/.x-cmd.root/X"
+x cowsay "hello"
+x ws build
+x sysinfo
+```
+
+| | Mode 1: `x-cmd <module>` | Mode 2: `. X` then `x <module>` |
+| --- | --- | --- |
+| Setup needed | none | must `. X` first |
+| Per-call cost | forks a subshell | direct function call |
+| Shell state shared | no (fresh shell each call) | yes (within the loaded shell) |
+| Use when | one-off, cron, `sh -c`, before login scripts | interactive shell, scripts that call `x` many times |
+
+Mode 1 is the simplest — works in any shell, even before login scripts run. Mode 2 is faster for batch use and lets multiple commands share state.
+
+## A.3 What `x-cmd/action` does, in those terms
+
+`x-cmd/action`'s init step is just **A.1** in disguise: it ensures `~/.x-cmd.root/X` exists (by `eval`-installing via `x-cmd/get`), then the run step `. ${___X_CMD_ROOT}/X` switches you into **Mode 2**. The artifact upload at the end is the only piece that's GitHub-specific. Everything else is plain x-cmd.
+
+---
+
+# Part B — Using x-cmd Inside GitHub Actions
+
+> The rest of this README documents `x-cmd/action` itself.
+
 ## 1. Basic Usage
 
 ### 1.1 Hello world — one inline command

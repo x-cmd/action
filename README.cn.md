@@ -49,6 +49,57 @@
 
 ---
 
+# 上篇 —— 不依赖本 action 使用 x-cmd
+
+> 如果你只是想把 `x-cmd/action` 接到一个 workflow 里，下面这一大段可以全部跳过。本节是给**不**用 GitHub Actions、或者想看清楚 action 底层在干什么的用户看的。
+
+## A.1 把 x-cmd 加载到 shell
+
+**同一段代码**既能放进脚本里，也能放进 shell 初始化文件：
+
+```bash
+if [ -f "$HOME/.x-cmd.root/X" ]; then
+    . "$HOME/.x-cmd.root/X"
+else
+    eval "$(curl -s https://get.x-cmd.com)"
+fi
+```
+
+- **放进脚本** —— 粘到文件首行。幂等：因为 `X` 本身会防重复加载，再跑一遍也没事。
+- **全局生效（按用户）** —— 粘到 `~/.bashrc` / `~/.zshrc`。登录后每个交互式 shell 里 `x <module>` 都能直接用。
+
+## A.2 调用 x-cmd —— 两种等价姿势
+
+```bash
+# 姿势 1：当成外部命令 —— 每次新建子 shell，不需要任何准备
+x-cmd cowsay "hello"
+
+# 姿势 2：加载进当前 shell，再反复调用 x（更快、可共享状态）
+. "$HOME/.x-cmd.root/X"
+x cowsay "hello"
+x ws build
+x sysinfo
+```
+
+| | 姿势 1：`x-cmd <module>` | 姿势 2：`. X` 后 `x <module>` |
+| --- | --- | --- |
+| 是否需要预加载 | 不需要 | 必须先 `. X` |
+| 每次调用开销 | fork 子 shell | 直接函数调用 |
+| shell 状态共享 | 不共享（每次全新 shell） | 共享（同一加载环境内） |
+| 适用场景 | 一次性调用、cron、`sh -c`、登录脚本之前 | 交互式 shell、脚本里多次调 `x` |
+
+姿势 1 最简单 —— 任何 shell 都能用，登录脚本还没跑都行。姿势 2 在批量调用时更快，多个命令之间可以共享 shell 状态。
+
+## A.3 用这两条来看 `x-cmd/action` 做了什么
+
+`x-cmd/action` 的 init step 本质就是 **A.1** 的自动化版本：保证 `~/.x-cmd.root/X` 存在（必要时通过 `x-cmd/get` `eval` 安装），随后 run step 里 `. ${___X_CMD_ROOT}/X` 切到**姿势 2**。末尾的 artifact 上传是唯一真正和 GitHub 绑定的部分，其他全是普通的 x-cmd 用法。
+
+---
+
+# 下篇 —— 在 GitHub Actions 里用 x-cmd
+
+> 接下来才是 `x-cmd/action` 本身的文档。
+
 ## 1. 基本使用
 
 ### 1.1 Hello world —— 一行内联命令
