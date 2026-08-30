@@ -532,11 +532,19 @@ eval "$(curl "https://raw.githubusercontent.com/x-cmd/get/main/$___X_CMD_GHACTIO
 
 The generic `eval "$(curl -s https://get.x-cmd.com)"` is the same content served via a different endpoint — a CDN-fronted domain that ultimately serves `x-cmd/get`'s `index.html`. In the action's git history you can see the older versions of this line used `x-bash/get` and `get.x-cmd.com` before settling on the direct raw URL.
 
-**The two real differences:**
+**Why the action uses a direct GitHub URL:**
+
+For **GitHub-hosted runners** (the default — `ubuntu-latest`, `macos-latest`, etc.), the runner runs inside GitHub's own data centers. `raw.githubusercontent.com` is also GitHub's infrastructure, so the `curl` is effectively an **internal fetch** — same network, no external hop, no cross-ISP routing, no third-party DNS. By contrast, `get.x-cmd.com` is an external CDN: the request leaves GitHub's network, hits the public DNS, traverses the public internet, and lands at a third-party edge. Same content either way; on hosted runners the internal path is shorter and more controlled.
+
+For **self-hosted runners**, this assumption doesn't hold — your runner is wherever you put it. Connectivity to `raw.githubusercontent.com` and to `get.x-cmd.com` will depend on your own network. In that case the CDN URL may actually be faster, but you can still use the action and let it pick the raw URL; just don't assume the topology benefit applies.
+
+**The two real differences in summary:**
 
 | | `x-cmd/action` | `eval "$(curl ... get.x-cmd.com)"` |
 | --- | --- | --- |
 | Install URL | direct raw: `raw.githubusercontent.com/x-cmd/get/main/<channel>` | CDN: `get.x-cmd.com` |
+| Network path (on GitHub-hosted runners) | internal to GitHub's data center | leaves GitHub's network → public internet → CDN edge |
+| Network path (on self-hosted runners) | depends on your network | depends on your network |
 | Channel selection | explicit via `___X_CMD_GHACTION_X` env var (`index.html` / `x0` / `x1` / `x2`) | whatever the CDN serves at request time |
 | Failure handling | `\|\| true` + init context has `errexit` off — install failure doesn't kill the job | up to the caller |
 

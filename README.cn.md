@@ -528,11 +528,19 @@ eval "$(curl "https://raw.githubusercontent.com/x-cmd/get/main/$___X_CMD_GHACTIO
 
 通用的 `eval "$(curl -s https://get.x-cmd.com)"` 走的是另一个端点 —— 一个 CDN 前置的域名，最终也是从 `x-cmd/get` 的 `index.html` 服务出来的。在 action 的 git 历史里能看到，这一行最早用的是 `x-bash/get`，后来换成 `get.x-cmd.com`，最后才定到当前的直连 raw URL。
 
-**两个真正不一样的点：**
+**为什么 action 走 GitHub 直连 URL：**
+
+对 **GitHub 官方托管 runner**（默认 —— `ubuntu-latest`、`macos-latest` 等）来说，runner 跑在 GitHub 自家的数据中心里。`raw.githubusercontent.com` 也是 GitHub 自家基础设施 —— 所以这次 `curl` 其实是**内网请求**：同一套网络、没有出网跳、没有跨 ISP 路由、不用查第三方 DNS。而 `get.x-cmd.com` 是个外部 CDN：请求要先离开 GitHub 的网络、查公网 DNS、走公共互联网，最后才落到第三方边缘节点。返回的内容完全一样，托管 runner 上内网路径更短、链路更可控。
+
+但对 **self-hosted runner** 不成立 —— 你的 runner 放在哪里都行，连 `raw.githubusercontent.com` 和连 `get.x-cmd.com` 的速度取决于你自己的网络。这时候可能 CDN 反而更快。不过 action 仍然可以用，只是别假设这个拓扑优势在 self-hosted 上同样成立。
+
+**总结两个真正不一样的点：**
 
 | | `x-cmd/action` | `eval "$(curl ... get.x-cmd.com)"` |
 | --- | --- | --- |
 | 安装 URL | 直连 raw：`raw.githubusercontent.com/x-cmd/get/main/<channel>` | CDN：`get.x-cmd.com` |
+| 网络路径（在 GitHub 托管 runner 上） | GitHub 数据中心内网 | 出 GitHub 网络 → 公共互联网 → CDN 边缘 |
+| 网络路径（在 self-hosted runner 上） | 取决于你的网络 | 取决于你的网络 |
 | 通道选择 | 通过 `___X_CMD_GHACTION_X` 显式指定（`index.html` / `x0` / `x1` / `x2`） | 取决于请求时 CDN 服务的内容 |
 | 失败处理 | `\|\| true` + init 上下文 `errexit` 是关的 —— 装失败不会拖垮 job | 由调用方自己处理 |
 
