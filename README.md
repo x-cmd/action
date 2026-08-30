@@ -557,6 +557,34 @@ The action's hard-coded raw URL is the right default for the common case (hosted
 
 Use `x-cmd/action` inside GitHub Actions; use the generic install (§A.1 pattern) everywhere else.
 
+### Why can't my shell find binaries installed by `x eget use` or `x env use`?
+
+`x eget use` drops the binary into `$HOME/.local/bin/`. `x env use` (and other x-cmd package installs) drop into a per-package path under `~/.x-cmd.root/local/data/pkg/sphere/.../bin/`. Neither directory is on `PATH` by default in a fresh shell — installing a tool is not the same as putting it on `PATH`.
+
+**Fix:** either configure `PATH` explicitly, or load x-cmd into the current shell — `. "$HOME/.x-cmd.root/X"` does the `PATH` setup for you.
+
+```bash
+# Option 1: source x-cmd first — PATH is wired up
+. "$HOME/.x-cmd.root/X"
+x eget use jq
+jq --version                # works
+
+# Option 2: prepend the install paths yourself
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**Inside `x-cmd/action`:** the run step already does `. $___X_CMD_ROOT/X`, so binaries installed by `x eget use` / `x env use` inside `code:` are callable from the same `code:` block (and from the same step's subsequent invocations):
+
+```yaml
+- uses: x-cmd/action@main
+  with:
+    code: |
+      x eget use jq
+      jq --version            # works — PATH was set up by the action's . X
+```
+
+**Across separate action steps:** each step is an independent bash process, so `PATH` does **not** carry over. If step A does `x eget use jq` and step B wants to call `jq`, step B must load x-cmd again (which the action does automatically) — and since the install in `$HOME/.local/bin` survives between steps, `jq` will be found as long as x-cmd is loaded in step B.
+
 ### What's `~/xghaction`?
 
 A transient dispatcher file downloaded by the first step and re-sourced by the second. Safe to ignore; don't put your own file at that path.
@@ -594,6 +622,19 @@ Most common causes:
 - x-cmd known hosts: <https://github.com/x-cmd/knownhost>
 - Composite Actions docs: <https://docs.github.com/en/actions/creating-actions/creating-a-composite-action>
 - `actions/upload-artifact@v4`: <https://github.com/actions/upload-artifact>
+
+## Example Workflows
+
+The `.github/workflows/` directory is a **demonstration gallery**, not production CI for this repo (the action itself is just `action.yml` + `lib/index.sh`). Each workflow is `workflow_dispatch`-only — never auto-runs on push — and you can trigger it by hand from the Actions tab to see the pattern working end-to-end.
+
+See [`.github/workflows/README.md`](.github/workflows/README.md) for the full list. Highlights:
+
+- **`test-git-push.yml`** — push a commit back using `ssh_key` + `git_user` + `git_email`.
+- **`test-workspace-repo.yml`** — clone a separate repo into `ws/` via `ws_owner_repo`.
+- **`test-docker-buildx.yml`** — Docker login + buildx init + multi-arch build.
+- **`test-hooks.yml`** — trace `prehook` → `script` → `code` → `posthook` order.
+- **`test-pipeline.yml`** — multi-job `build → test → publish` with artifact handoff.
+- **`test-toolchain.yml`** — `x env use node` / `python` instead of `actions/setup-*`.
 
 ## License
 

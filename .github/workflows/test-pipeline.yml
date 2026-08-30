@@ -1,0 +1,48 @@
+# Example: Multi-job pipeline — build produces an artifact, downstream job consumes it.
+# Demonstrates: artifact upload from one x-cmd/action step, downloaded by another job
+#               via actions/download-artifact, then a second x-cmd/action uses it.
+
+name: Example — Pipeline (build → test → publish)
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Produce a fake build output under ~/ws/.artifact
+        uses: x-cmd/action@main
+        with:
+          code: |
+            mkdir -p ~/ws/.artifact
+            echo "binary built at $(date -u)" > ~/ws/.artifact/binary.txt
+            echo "version=0.0.1" > ~/ws/.artifact/manifest.txt
+            ls -la ~/ws/.artifact
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download what build produced
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact
+          path: ~/ws/.artifact
+      - name: Verify via x-cmd
+        uses: x-cmd/action@main
+        with:
+          code: |
+            echo "==> downloaded files:"
+            cat ~/ws/.artifact/binary.txt
+            cat ~/ws/.artifact/manifest.txt
+            x cowsay "pipeline OK"
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Final step
+        uses: x-cmd/action@main
+        with:
+          code: x cowsay "would publish here"

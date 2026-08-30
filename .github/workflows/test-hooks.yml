@@ -1,0 +1,27 @@
+# Example: prehook / script / code / posthook execution order.
+# Demonstrates: the four hook inputs and the order they run in.
+
+name: Example — Hooks
+on:
+  workflow_dispatch:
+
+jobs:
+  hooks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trace the four hook inputs
+        uses: x-cmd/action@main
+        with:
+          prehook: |
+            echo "==> prehook: runs first"
+            mkdir -p /tmp/hooks-demo
+            date +%s > /tmp/hooks-demo/start
+          code: |
+            echo "==> code: runs after prehook (and after script: if set)"
+            date +%s > /tmp/hooks-demo/middle
+            x cowsay "main work happens here"
+          posthook: |
+            echo "==> posthook: runs last"
+            date +%s > /tmp/hooks-demo/end
+            echo "timeline:"
+            cat /tmp/hooks-demo/*

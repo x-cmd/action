@@ -553,6 +553,34 @@ action 把 raw URL 硬编码作为默认值，覆盖的是最常见的情况（�
 
 在 GitHub Actions 里用 `x-cmd/action`；其他场景用通用安装（§A.1 的写法）。
 
+### 为什么 `x eget use` / `x env use` 装的二进制跑不到？
+
+`x eget use` 把二进制放到 `$HOME/.local/bin/`。`x env use`（以及其他 x-cmd 包管理器的安装）放到 `~/.x-cmd.root/local/data/pkg/sphere/.../bin/` 这样的 per-package 路径下。这两个目录默认都不在 `PATH` 里 —— 装一个工具和把它放到 `PATH` 上是两码事。
+
+**修法：** 要么显式配 `PATH`，要么先把 x-cmd 加载进当前 shell —— `. "$HOME/.x-cmd.root/X"` 会顺带把 `PATH` 配好。
+
+```bash
+# 姿势 1：先 source x-cmd —— PATH 自动配好
+. "$HOME/.x-cmd.root/X"
+x eget use jq
+jq --version                # 能跑
+
+# 姿势 2：手动把安装路径加进 PATH
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**在 `x-cmd/action` 里：** run step 已经 `. $___X_CMD_ROOT/X` 过了，所以在同一个 `code:` 块（以及同一个 step 的后续调用）里用 `x eget use` / `x env use` 装的工具都能直接跑：
+
+```yaml
+- uses: x-cmd/action@main
+  with:
+    code: |
+      x eget use jq
+      jq --version            # 能跑 —— PATH 已经被 action 的 . X 配好了
+```
+
+**跨 step：** 每个 step 是独立的 bash 进程，`PATH` 不会跨 step 传递。如果 step A 装了 `jq`、step B 想用，step B 还得加载 x-cmd（action 会自动做）—— 因为 `$HOME/.local/bin` 里的安装结果在 step 之间是留存的，只要 step B 加载了 x-cmd 就能找到。
+
 ### `ws/` 是怎么生成的？
 
 `ws_owner_repo` 和 `ws_repo_ref` 都设了的时候，action 会 `git clone --branch <ref> <url>`，再 `ln -s $(pwd)/<repo> $(pwd)/ws`。进 `ws/` 之后 `script:` 的相对路径就是相对于这个仓库的根。

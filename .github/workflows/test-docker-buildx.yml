@@ -1,0 +1,23 @@
+# Example: Docker login + buildx init, then a multi-arch build.
+# Demonstrates: docker_username + docker_password + docker_buildx_init inputs.
+# Requires: secrets.DOCKERHUB_USERNAME and secrets.DOCKERHUB_TOKEN set.
+
+name: Example — Docker Buildx
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: docker login + buildx create --use + multi-arch build
+        uses: x-cmd/action@main
+        with:
+          docker_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          docker_password: ${{ secrets.DOCKERHUB_TOKEN }}
+          docker_buildx_init: 'true'
+          code: |
+            set -e
+            docker info | head -5
+            docker buildx version
+            echo "buildx is initialized; docker is logged in"

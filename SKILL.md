@@ -239,6 +239,7 @@ Execution order when multiple are set: `prehook` → `script` → `code` → `po
 - ❌ **Adding `actions/setup-node` / `setup-python` / `setup-go`** — x-cmd provides `x env use node`, `x env use python`, `x env use go`. Prefer those.
 - ❌ **Putting secrets in `code:`** — pass via `env:` and reference as `$VAR` in `code:`. The action's dedicated inputs (`ssh_key`, `docker_password`, etc.) are the proper channels.
 - ❌ **Relying on `x` being on PATH without loading** — first line of any portable script is `. "$HOME/.x-cmd.root/X"`. The `X` file is idempotent.
+- ❌ **Expecting `jq` / `node` / etc. on PATH after `x eget use` without loading x-cmd** — `x eget use` drops the binary into `$HOME/.local/bin/`, and `x env use` lands it under `~/.x-cmd.root/local/data/pkg/sphere/.../bin/`. Neither path is on `PATH` by default. Sourcing `X` adds them; otherwise `export PATH="$HOME/.local/bin:$PATH"` manually. See FAQ in README.
 - ❌ **Hard-coding `~/ws/.artifact`** in the script — write the script to honor `$ARTIFACT_PATH` if you make it configurable; otherwise rely on the default.
 - ❌ **Writing a workflow that only works on GitHub** — if the script needs `${{ github.* }}` interpolations, it's not portable. Hoist those into env vars and read with `${VAR:-}`.
 - ❌ **Wrapping the action in `run: |` blocks for "extra safety"** — `with: { code: | ... }` already supports multi-line strings.

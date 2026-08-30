@@ -1,0 +1,21 @@
+# Example: Clone a separate "workspace" repo and run commands inside it.
+# Demonstrates: ws_owner_repo + ws_repo_ref inputs, ws/ symlink, cwd after cd.
+
+name: Example — Workspace Repo
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone x-cmd/ws into ./ws, run x cowsay
+        uses: x-cmd/action@main
+        with:
+          ws_owner_repo: x-cmd/ws
+          ws_repo_ref: main
+          code: |
+            # After init, cwd is ws/ (the cloned repo).
+            pwd
+            ls
+            x cowsay "running inside $(basename "$(pwd)")"

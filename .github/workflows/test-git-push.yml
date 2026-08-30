@@ -1,0 +1,31 @@
+# Example: Push a commit back to a GitHub repo over SSH.
+# Demonstrates: ssh_key + git_user + git_email inputs, with known_hosts preloaded.
+# Requires: secrets.SSH_PRIVATE_KEY set in repo settings.
+
+name: Example — Git Push
+on:
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    env:
+      ssh_key: ${{ secrets.SSH_PRIVATE_KEY }}
+    steps:
+      - name: Clone → commit → push via x-cmd/action
+        uses: x-cmd/action@main
+        with:
+          git_user: example-bot
+          git_email: bot@example.com
+          code: |
+            set -e
+            WORK=$(mktemp -d)
+            cd "$WORK"
+            git clone git@github.com:x-cmd/action.git repo
+            cd repo
+            echo "pushed by x-cmd/action at $(date -u)" >> .writeback
+            git config user.name "example-bot"
+            git config user.email "bot@example.com"
+            git add .writeback
+            git commit -m "ci: writeback demo"
+            git push origin HEAD:refs/heads/writeback-demo

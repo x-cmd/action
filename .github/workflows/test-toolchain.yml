@@ -1,0 +1,24 @@
+# Example: Toolchain via x env use — no actions/setup-* needed.
+# Demonstrates: x-cmd provides language toolchains on demand; x-cmd/action
+#               doesn't need to add inputs for each ecosystem.
+
+name: Example — Toolchain via x env use
+on:
+  workflow_dispatch:
+
+jobs:
+  toolchain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull node + python on demand via x env use
+        uses: x-cmd/action@main
+        with:
+          code: |
+            set -e
+            x env use node
+            node --version
+
+            x env use python
+            python --version
+
+            echo "toolchains resolved via x-cmd, no actions/setup-* needed"
